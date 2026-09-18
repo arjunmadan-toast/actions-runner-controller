@@ -109,6 +109,9 @@ type AutoscalingRunnerSetSpec struct {
 	EphemeralRunnerConfigSecretMetadata *ResourceMeta `json:"ephemeralRunnerConfigSecretMetadata,omitempty"`
 
 	// +optional
+	JobInfoLabels *JobInfoConfig `json:"jobInfoLabels,omitempty"`
+
+	// +optional
 	// +kubebuilder:validation:Minimum:=0
 	MaxRunners *int `json:"maxRunners,omitempty"`
 
@@ -310,6 +313,39 @@ type GaugeMetric struct {
 type HistogramMetric struct {
 	Labels  []string  `json:"labels"`
 	Buckets []float64 `json:"buckets,omitempty"`
+}
+
+// JobInfoConfig controls whether the EphemeralRunner controller patches the
+// runner pod with GitHub Actions job metadata (repository, job display name,
+// job ID, workflow run ID) once a job is assigned, for cost attribution in
+// shared/org-level runner pools. A nil JobInfoConfig (the default) means the
+// feature is fully off; each field below is an independent switch, so an
+// operator can enable only the fields they want.
+type JobInfoConfig struct {
+	// JobRepositoryLabel adds the sanitized actions.github.com/job-repository label.
+	// +optional
+	JobRepositoryLabel bool `json:"jobRepositoryLabel,omitempty"`
+
+	// JobDisplayNameLabel adds the sanitized actions.github.com/job-display-name label.
+	// +optional
+	JobDisplayNameLabel bool `json:"jobDisplayNameLabel,omitempty"`
+
+	// JobIDAnnotation adds the actions.github.com/job-id annotation.
+	// +optional
+	JobIDAnnotation bool `json:"jobIdAnnotation,omitempty"`
+
+	// WorkflowRunIDAnnotation adds the actions.github.com/workflow-run-id annotation.
+	//
+	// This value is unique per workflow run. Enabling it on a metrics pipeline
+	// that scrapes pod annotations into metric labels can create unbounded
+	// cardinality.
+	// +optional
+	WorkflowRunIDAnnotation bool `json:"workflowRunIdAnnotation,omitempty"`
+
+	// JobRepositoryAnnotation adds the actions.github.com/job-repository-name
+	// annotation (the full, unsanitized repository name).
+	// +optional
+	JobRepositoryAnnotation bool `json:"jobRepositoryAnnotation,omitempty"`
 }
 
 // AutoscalingRunnerSetStatus defines the observed state of AutoscalingRunnerSet

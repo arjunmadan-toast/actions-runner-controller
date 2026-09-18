@@ -130,6 +130,38 @@ spec:
                           x-kubernetes-map-type: atomic
                       type: object
                   type: object
+                jobInfoLabels:
+                  description: |-
+                    JobInfoConfig controls whether the EphemeralRunner controller patches the
+                    runner pod with GitHub Actions job metadata (repository, job display name,
+                    job ID, workflow run ID) once a job is assigned, for cost attribution in
+                    shared/org-level runner pools. A nil JobInfoConfig (the default) means the
+                    feature is fully off; each field below is an independent switch, so an
+                    operator can enable only the fields they want.
+                  properties:
+                    jobDisplayNameLabel:
+                      description: JobDisplayNameLabel adds the sanitized actions.github.com/job-display-name label.
+                      type: boolean
+                    jobIdAnnotation:
+                      description: JobIDAnnotation adds the actions.github.com/job-id annotation.
+                      type: boolean
+                    jobRepositoryAnnotation:
+                      description: |-
+                        JobRepositoryAnnotation adds the actions.github.com/job-repository-name
+                        annotation (the full, unsanitized repository name).
+                      type: boolean
+                    jobRepositoryLabel:
+                      description: JobRepositoryLabel adds the sanitized actions.github.com/job-repository label.
+                      type: boolean
+                    workflowRunIdAnnotation:
+                      description: |-
+                        WorkflowRunIDAnnotation adds the actions.github.com/workflow-run-id annotation.
+
+                        This value is unique per workflow run. Enabling it on a metrics pipeline
+                        that scrapes pod annotations into metric labels can create unbounded
+                        cardinality.
+                      type: boolean
+                  type: object
                 listenerConfig:
                   description: ListenerConfig holds configuration for the ghalistener pod.
                   properties:

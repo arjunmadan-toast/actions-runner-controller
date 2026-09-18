@@ -338,6 +338,26 @@ listenerConfig:
 #           3600.0,
 #         ]
 
+## jobInfoLabels lets you opt in to having the controller patch runner pods with
+## GitHub Actions job metadata (repository, job display name, job id, workflow
+## run id) as labels/annotations once a job is assigned, useful for cost
+## attribution in shared/org-level runner pools.
+##
+## Disabled by default (this block is commented out, so helm doesn't merge in
+## an empty object). Each field below is its own independent on/off switch -
+## uncomment only the ones you want.
+##
+## WARNING: workflowRunIdAnnotation carries a high-cardinality value (unique
+## per workflow run). If your metrics pipeline (Datadog, Prometheus, etc.)
+## scrapes pod labels/annotations into metric tags, enabling it can blow up
+## cardinality - opt in deliberately.
+# jobInfoLabels:
+#   jobRepositoryLabel: true
+#   jobDisplayNameLabel: true
+#   jobIdAnnotation: true
+#   workflowRunIdAnnotation: true
+#   jobRepositoryAnnotation: true
+
 ## template is the PodSpec for each runner Pod
 ## For reference: https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#PodSpec
 template:

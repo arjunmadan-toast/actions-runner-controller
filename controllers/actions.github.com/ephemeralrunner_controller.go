@@ -400,6 +400,11 @@ func (r *EphemeralRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 	}
 
+	if err := r.labelPodWithJobInfo(ctx, &ephemeralRunner, pod, log); err != nil {
+		log.Error(err, "Failed to label pod with job info")
+		return ctrl.Result{}, err
+	}
+
 	cs := runnerContainerStatus(pod)
 	switch {
 	case pod.Status.Phase == corev1.PodFailed: // All containers are stopped
@@ -1024,6 +1029,79 @@ func (r *EphemeralRunnerReconciler) publishEphemeralRunnerPhaseMetric(ephemeralR
 
 	metrics.AddEphemeralRunner(commonLabels, phase)
 	ephemeralRunnerPhaseMetrics.phases[key] = phase
+}
+
+func (r *EphemeralRunnerReconciler) labelPodWithJobInfo(ctx context.Context, ephemeralRunner *v1alpha1.EphemeralRunner, pod *corev1.Pod, log logr.Logger) error {
+	cfg := ephemeralRunner.Spec.JobInfoLabels
+	if cfg == nil {
+		return nil
+	}
+	if ephemeralRunner.Status.JobRepositoryName == "" {
+		return nil
+	}
+
+	// Use an annotation on the EphemeralRunner as the idempotency guard instead of
+	// the pod label. The pod is read from the informer cache which may lag behind the
+	// actual patch, causing repeated patches until the cache refreshes.
+	if ephemeralRunner.Annotations[AnnotationKeyJobInfoLabeled] != "" {
+		return nil
+	}
+
+	podPatch := client.MergeFrom(pod.DeepCopy())
+	if pod.Labels == nil {
+		pod.Labels = make(map[string]string)
+	}
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	var changed bool
+	if cfg.JobRepositoryLabel {
+		pod.Labels[LabelKeyGitHubJobRepository] = sanitizeLabelValue(ephemeralRunner.Status.JobRepositoryName)
+		changed = true
+	}
+	if cfg.JobDisplayNameLabel {
+		pod.Labels[LabelKeyGitHubJobDisplayName] = sanitizeLabelValue(ephemeralRunner.Status.JobDisplayName)
+		changed = true
+	}
+	if cfg.JobIDAnnotation {
+		pod.Annotations[AnnotationKeyGitHubJobID] = ephemeralRunner.Status.JobID
+		changed = true
+	}
+	if cfg.WorkflowRunIDAnnotation {
+		pod.Annotations[AnnotationKeyWorkflowRunID] = strconv.FormatInt(ephemeralRunner.Status.WorkflowRunID, 10)
+		changed = true
+	}
+	if cfg.JobRepositoryAnnotation {
+		pod.Annotations[AnnotationKeyGitHubJobRepository] = ephemeralRunner.Status.JobRepositoryName
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+
+	log.Info("Patching pod with job info labels",
+		"jobRepository", ephemeralRunner.Status.JobRepositoryName,
+		"jobDisplayName", ephemeralRunner.Status.JobDisplayName,
+	)
+
+	if err := r.Patch(ctx, pod, podPatch); err != nil {
+		return fmt.Errorf("failed to patch pod with job info: %w", err)
+	}
+
+	// Annotate the EphemeralRunner so subsequent reconciles skip the patch even
+	// if the pod cache hasn't refreshed yet.
+	runnerPatch := client.MergeFrom(ephemeralRunner.DeepCopy())
+	if ephemeralRunner.Annotations == nil {
+		ephemeralRunner.Annotations = make(map[string]string)
+	}
+	ephemeralRunner.Annotations[AnnotationKeyJobInfoLabeled] = "true"
+	if err := r.Patch(ctx, ephemeralRunner, runnerPatch); err != nil {
+		return fmt.Errorf("failed to patch ephemeral runner with job info guard annotation: %w", err)
+	}
+
+	log.Info("Patched pod with job info labels")
+	return nil
 }
 
 func ephemeralRunnerMetricLabels(ephemeralRunner *v1alpha1.EphemeralRunner) (metrics.CommonLabels, error) {

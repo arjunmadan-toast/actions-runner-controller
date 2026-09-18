@@ -190,6 +190,11 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 
+  {{- with .Values.jobInfoLabels }}
+  jobInfoLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
   {{- with (index $resourceMeta "autoscalingListener") }}
   autoscalingListener:
     {{- include "gha-runner-scale-set.resourceMetaSpec" . | nindent 4 }}

@@ -233,6 +233,39 @@ func TestEphemeralRunnerSetProxySecretMetadata(t *testing.T) {
 	assert.NotContains(t, proxySecret.Annotations, "actions.github.com/integrity-hash")
 }
 
+func TestJobInfoLabelsPropagation(t *testing.T) {
+	jobInfoLabels := &v1alpha1.JobInfoConfig{
+		JobRepositoryLabel:      true,
+		JobDisplayNameLabel:     true,
+		JobIDAnnotation:         true,
+		WorkflowRunIDAnnotation: true,
+		JobRepositoryAnnotation: true,
+	}
+	autoscalingRunnerSet := v1alpha1.AutoscalingRunnerSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-scale-set",
+			Namespace: "test-ns",
+			Annotations: map[string]string{
+				runnerScaleSetIDAnnotationKey: "1",
+			},
+		},
+		Spec: v1alpha1.AutoscalingRunnerSetSpec{
+			GitHubConfigUrl: "https://github.com/org/repo",
+			JobInfoLabels:   jobInfoLabels,
+		},
+	}
+
+	cache := NewResourceCache()
+	b := ResourceBuilder{ResourceCache: &cache}
+	ephemeralRunnerSet, err := b.newEphemeralRunnerSet(&autoscalingRunnerSet)
+	require.NoError(t, err)
+	assert.Equal(t, jobInfoLabels, ephemeralRunnerSet.Spec.EphemeralRunnerSpec.JobInfoLabels)
+
+	ephemeralRunner, err := b.newEphemeralRunner(ephemeralRunnerSet)
+	require.NoError(t, err)
+	assert.Equal(t, jobInfoLabels, ephemeralRunner.Spec.JobInfoLabels)
+}
+
 func TestGitHubURLTrimLabelValues(t *testing.T) {
 	enterprise := strings.Repeat("a", 64)
 	organization := strings.Repeat("b", 64)
@@ -301,6 +334,33 @@ func TestGitHubURLTrimLabelValues(t *testing.T) {
 		assert.Len(t, listener.Labels[LabelKeyGitHubOrganization], 0)
 		assert.Len(t, listener.Labels[LabelKeyGitHubRepository], 0)
 	})
+}
+
+func TestSanitizeLabelValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "my-repo", "my-repo"},
+		{"slashes replaced", "myorg/my-repo", "myorg_my-repo"},
+		{"spaces replaced", "Test default-runners", "Test_default-runners"},
+		{"multiple invalid chars", "org/repo name (test)", "org_repo_name__test"},
+		{"leading invalid stripped", "---my-repo", "my-repo"},
+		{"trailing invalid stripped", "my-repo...", "my-repo"},
+		{"all invalid chars", "///", ""},
+		{"empty string", "", ""},
+		{"truncated to 63", strings.Repeat("a", 100), strings.Repeat("a", 63)},
+		{"truncated trailing invalid stripped", strings.Repeat("a", 60) + "/..", strings.Repeat("a", 60)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeLabelValue(tt.input)
+			assert.Equal(t, tt.expected, got)
+			assert.LessOrEqual(t, len(got), 63)
+		})
+	}
 }
 
 func TestOwnershipRelationships(t *testing.T) {

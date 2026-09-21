@@ -129,6 +129,8 @@ type EphemeralRunnerSpec struct {
 	EphemeralRunnerConfigSecretMetadata *ResourceMeta `json:"ephemeralRunnerConfigSecretMetadata,omitempty"`
 
 	// +optional
+	JobInfoLabels *JobInfoConfig `json:"jobInfoLabels,omitempty"`
+
 	corev1.PodTemplateSpec `json:",inline"`
 }
 

@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -753,6 +754,7 @@ func (b *ResourceBuilder) newEphemeralRunnerSet(autoscalingRunnerSet *v1alpha1.A
 			PodTemplateSpec:                     autoscalingRunnerSet.Spec.Template,
 			VaultConfig:                         autoscalingRunnerSet.VaultConfig(),
 			EphemeralRunnerConfigSecretMetadata: autoscalingRunnerSet.Spec.EphemeralRunnerConfigSecretMetadata,
+			JobInfoLabels:                       autoscalingRunnerSet.Spec.JobInfoLabels,
 		},
 		EphemeralRunnerMetadata: autoscalingRunnerSet.Spec.EphemeralRunnerMetadata,
 	}
@@ -786,10 +788,20 @@ func (b *ResourceBuilder) newEphemeralRunnerSet(autoscalingRunnerSet *v1alpha1.A
 			Kind:       "EphemeralRunnerSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        autoscalingRunnerSet.Name,
-			Namespace:   autoscalingRunnerSet.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
+			GenerateName: autoscalingRunnerSet.Name + "-",
+			Namespace:    autoscalingRunnerSet.Namespace,
+			Labels:       labels,
+			Annotations:  annotations,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         v1alpha1.GroupVersion.String(),
+					Kind:               "AutoscalingRunnerSet",
+					UID:                autoscalingRunnerSet.GetUID(),
+					Name:               autoscalingRunnerSet.GetName(),
+					Controller:         new(true),
+					BlockOwnerDeletion: new(true),
+				},
+			},
 		},
 		Spec: spec,
 	}
@@ -1060,6 +1072,17 @@ func trimLabelValue(val string) string {
 		return val[:63-len(trimLabelVauleSuffix)] + trimLabelVauleSuffix
 	}
 	return strings.Trim(val, "-_.")
+}
+
+var invalidLabelChars = regexp.MustCompile(`[^a-zA-Z0-9\-_.]`)
+var invalidLabelEdges = regexp.MustCompile(`^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$`)
+
+func sanitizeLabelValue(val string) string {
+	val = invalidLabelChars.ReplaceAllString(val, "_")
+	if len(val) > 63 {
+		val = val[:63]
+	}
+	return invalidLabelEdges.ReplaceAllString(val, "")
 }
 
 func (b *ResourceBuilder) filterAndMergeLabels(base, overwrite map[string]string) map[string]string {

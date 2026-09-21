@@ -104,6 +104,20 @@ const resourceOwnerKey = ".metadata.controller"
 // that boundary and the resourceOwnerKey index does not apply to them.
 const autoscalingRunnerSetOwnerKey = ".spec.autoscalingRunnerSet"
 
+// Labels and annotations applied to runner pods when a job is assigned
+const (
+	LabelKeyGitHubJobRepository      = "actions.github.com/job-repository"
+	LabelKeyGitHubJobDisplayName     = "actions.github.com/job-display-name"
+	AnnotationKeyGitHubJobID         = "actions.github.com/job-id"
+	AnnotationKeyWorkflowRunID       = "actions.github.com/workflow-run-id"
+	AnnotationKeyGitHubJobRepository = "actions.github.com/job-repository-name"
+
+	// AnnotationKeyJobInfoLabeled is an internal idempotency guard set on the
+	// EphemeralRunner (never on the pod) once labelPodWithJobInfo has run for
+	// the current job, regardless of which individual fields were enabled.
+	AnnotationKeyJobInfoLabeled = "actions.github.com/job-info-labeled"
+)
+
 // EphemeralRunner pod creation failure reasons
 const (
 	ReasonTooManyPodFailures = "TooManyPodFailures"
